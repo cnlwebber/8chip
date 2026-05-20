@@ -1,0 +1,8 @@
+C:\Users\cnlwe\Desktop\repos\chip8\target\debug\deps\color_quant-a600d17291b6d529.d: C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\lib.rs C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\math.rs
+
+C:\Users\cnlwe\Desktop\repos\chip8\target\debug\deps\libcolor_quant-a600d17291b6d529.rlib: C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\lib.rs C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\math.rs
+
+C:\Users\cnlwe\Desktop\repos\chip8\target\debug\deps\libcolor_quant-a600d17291b6d529.rmeta: C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\lib.rs C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\math.rs
+
+C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\lib.rs:
+C:\Users\cnlwe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\color_quant-1.1.0\src\math.rs:

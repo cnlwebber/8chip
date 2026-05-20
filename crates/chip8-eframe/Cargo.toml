@@ -1,0 +1,9 @@
+[package]
+name = "chip8-glfw"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chip8-core = { path = "../chip8-core"}
+eframe = "0.34.2"
+egui = "0.34.2"
