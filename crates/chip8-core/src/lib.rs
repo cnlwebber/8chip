@@ -94,7 +94,7 @@ struct Chip8 {
     stack: EightStack,
     prev_keys: [u8; NUM_KEYS],
     keypad: [u8; NUM_KEYS],
-    display: [u8; WIDTH * HEIGHT],
+    frame_buffer: [u8; WIDTH * HEIGHT],
     registers: [u8; NUM_REGISTERS],
     delay_timer: u8,
     sound_timer: u8,
@@ -114,7 +114,7 @@ impl Chip8 {
             stack,
             prev_keys: [0; NUM_KEYS],
             keypad: [0; NUM_KEYS],
-            display: [0; WIDTH * HEIGHT],
+            frame_buffer: [0; WIDTH * HEIGHT],
             registers: [0; NUM_REGISTERS],
             delay_timer: 0,
             sound_timer: 0,
@@ -185,6 +185,4 @@ impl Chip8 {
             _ => Instruction::Unknown(opcode),
         }
     }
-
-
 } // impl Chip8

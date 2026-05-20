@@ -1,32 +1,31 @@
-extern crate glfw;
+use eframe::egui;
 
-use glfw::{Action, Context, Key};
+#[derive(Default)]
+struct Chip8GUI {}
+
+impl Chip8GUI {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_global_style.
+        // Restore app state using cc.storage (requires the "persistence" feature).
+        // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
+        // for e.g. egui::PaintCallback.
+        Self::default()
+    }
+}
+
+impl eframe::App for Chip8GUI {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            ui.heading("Hello World");
+        });
+    }
+}
 
 fn main() {
-    use glfw::fail_on_errors;
-    let mut glfw = glfw::init(fail_on_errors!()).unwrap();
-
-    // Create a windowed mode window and its OpenGL context
-    let (mut window, events) = glfw
-        .create_window(300, 300, "Hello this is window", glfw::WindowMode::Windowed)
-        .expect("Failed to create GLFW window.");
-
-    // Make the window's context current
-    window.make_current();
-    window.set_key_polling(true);
-
-    // Loop until the user closes the window
-    while !window.should_close() {
-        // Swap front and back buffers
-        window.swap_buffers();
-
-        // Poll for and process events
-        glfw.poll_events();
-        for (_, event) in glfw::flush_messages(&events) {
-            println!("{:?}", event);
-            if let glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) = event {
-                window.set_should_close(true)
-            }
-        }
-    }
+    let native_options = eframe::NativeOptions::default();
+    let _ = eframe::run_native(
+        "Chip 8",
+        native_options,
+        Box::new(|cc| Ok(Box::new(Chip8GUI::new(cc)))),
+    );
 }

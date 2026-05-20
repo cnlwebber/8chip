@@ -1,6 +1,6 @@
-use crate::{Chip8, FLAG_REGISTER, FONT_OFFSET, SPRITE_WIDTH};
+use crate::{Chip8, FLAG_REGISTER, FONT_OFFSET, HEIGHT, SPRITE_WIDTH, WIDTH};
 
-use rand::{RngExt, rng};
+use rand::RngExt;
 
 pub enum Instruction {
     Clear,
@@ -41,7 +41,6 @@ pub enum Instruction {
 }
 
 impl Chip8 {
-
     pub(super) fn execute(&mut self, instruction: Instruction) {
         match instruction {
             Instruction::Clear => self.op_00e0(),
@@ -84,7 +83,7 @@ impl Chip8 {
 
     // clear screen
     fn op_00e0(&mut self) {
-        self.display.fill(0);
+        self.frame_buffer.fill(0);
     } // Clear
 
     // exit subroutine
@@ -224,19 +223,34 @@ impl Chip8 {
     // as described above, vf is set to 1 if any screen pixels are flipped
     // from set to unset when the sprite is drawn, and to 0 if that does not happen
 
-    // TODO: work on after linking with glfw
-    fn op_dxyn(&mut self, x: u8, y: u8, n: u8) {
+    // pixel data: memory[index + i] N u8 integers
+    // display data: frame_buffer[y * WIDTH + x]
+    #[allow(non_snake_case)]
+    fn op_dxyn(&mut self, x: u8, y: u8, N: u8) {
+        let x = x as usize;
+        let y = y as usize;
         let index = self.index as usize;
-
-        let mut x = self.registers[x as usize] % 64;
         self.registers[FLAG_REGISTER] = 0;
 
-        for (y, i) in (self.registers[y as usize] % 32..).zip(0..n) {
-            let sprite_data = self.memory[index + i as usize];
-            let pixel_coords = self.pixel_coords(x, y);
-            for j in 0..SPRITE_WIDTH {
-                let pixel = (sprite_data >> (7 - j)) & 0x01;
-                x += 1;
+        for (y, i) in (self.registers[y] % HEIGHT as u8..).zip(0..N) {
+            let pixel_data = self.memory[index + i as usize];
+            if y > HEIGHT as u8 - 1 {
+                break;
+            }
+            for (x, j) in (self.registers[x] % WIDTH as u8..).zip(0..SPRITE_WIDTH) {
+                if x > WIDTH as u8 - 1 {
+                    break;
+                }
+                let frame_buffer_index = self.pixel_coords(x, y);
+                let frame_buffer_pixel = self.frame_buffer[frame_buffer_index];
+                let sprite_pixel = (pixel_data >> (7 - j)) & 0x01;
+                if self.registers[FLAG_REGISTER] == 0
+                    && sprite_pixel == 1
+                    && frame_buffer_pixel == 1
+                {
+                    self.registers[FLAG_REGISTER] = 1;
+                }
+                self.frame_buffer[frame_buffer_index] = sprite_pixel ^ frame_buffer_pixel;
             }
         }
     } // Draw
