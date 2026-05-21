@@ -22,80 +22,57 @@ const FONT: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
-
 const FONT_OFFSET: usize = 0x050;
 
 pub const WIDTH: usize = 64;
 pub const HEIGHT: usize = 32;
-const SPRITE_WIDTH: usize = 8;
-
-const MEMORY_SIZE: usize = 4096;
-const NUM_KEYS: usize = 16;
-const NUM_REGISTERS: usize = 16;
-const STACK_CAPACITY: usize = 16;
-
+pub const SPRITE_WIDTH: usize = 8;
 pub const FLAG_REGISTER: usize = 15;
 
-// not using vector because original CHIP8 had limited stack anyways - shouldn't be an issue
-struct EightStack {
-    stack: [u16; STACK_CAPACITY],
-    size: usize,
+struct FrameBuffer {
+    buffer: [u8; 256]
 }
 
-impl EightStack {
-    fn new() -> Self {
-        let stack = [0; STACK_CAPACITY];
-        Self { stack, size: 0 }
-    }
-
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.size == 0
-    }
-
-    pub fn is_full(&self) -> bool {
-        self.size == STACK_CAPACITY
-    }
-
-    pub fn pop(&mut self) -> Option<u16> {
-        if self.is_empty() {
-            return None;
+impl Default for FrameBuffer {
+    fn default() -> Self {
+        Self {
+            buffer: [0; 256]
         }
+    }
+}
 
-        let size = self.size - 1;
-        self.size -= 1;
-        Some(self.stack[size])
+impl FrameBuffer {
+    fn get_pixel(&self, x: usize, y: usize) -> u8 {
+        let pixel_index = y * HEIGHT + x;
+        (self.buffer[pixel_index >> 8]) >> (7 - (pixel_index % 8)) & 1
     }
 
-    pub fn peek(&self) -> Option<u16> {
-        if self.is_empty() {
-            return None;
+    fn set_pixel(&mut self, x: usize, y: usize, val: bool) {
+        let pixel_index = y * HEIGHT + x;
+        let byte_index = pixel_index >> 8;
+        let bit_index = 7 - pixel_index % 8;
+        if val {
+            self.buffer[byte_index] |= 1 << bit_index;
+        } else {
+            self.buffer[byte_index] &= !(1 << bit_index);
         }
-        Some(self.stack[self.size - 1])
     }
 
-    pub fn push(&mut self, val: u16) {
-        if self.is_full() {
-            panic!("Stack Overflow");
-        }
-
-        self.stack[self.size] = val;
-        self.size += 1;
+    fn clear(&mut self) {
+        self.buffer = [0; 256] ;
     }
-} // impl EightStack
+}
 
 struct Chip8 {
     pc: u16,
     index: u16,
-    memory: [u8; MEMORY_SIZE],
-    stack: EightStack,
-    prev_keys: [u8; NUM_KEYS],
-    keypad: [u8; NUM_KEYS],
-    frame_buffer: [u8; WIDTH * HEIGHT],
-    registers: [u8; NUM_REGISTERS],
+    memory: [u8; 4096],
+    stack: [u16; 16],
+    stack_ptr: u8,
+    prev_keys: [u8; 16],
+    keypad: [u8; 16],
+    frame_buffer: FrameBuffer,
+    registers: [u8; 16],
     delay_timer: u8,
     sound_timer: u8,
     rng: ThreadRng,
@@ -103,27 +80,23 @@ struct Chip8 {
 
 impl Chip8 {
     fn new() -> Self {
-        let stack = EightStack::new();
-        let mut memory = [0; MEMORY_SIZE];
+        let mut memory = [0; 4096];
         memory[FONT_OFFSET..FONT_OFFSET + FONT.len()].copy_from_slice(&FONT);
         let rng = rand::rng();
         Self {
             pc: 0x200,
             index: 0,
             memory,
-            stack,
-            prev_keys: [0; NUM_KEYS],
-            keypad: [0; NUM_KEYS],
-            frame_buffer: [0; WIDTH * HEIGHT],
-            registers: [0; NUM_REGISTERS],
+            stack: [0; 16],
+            stack_ptr: 0,
+            prev_keys: [0; 16],
+            keypad: [0; 16],
+            frame_buffer: FrameBuffer::default(),
+            registers: [0; 16],
             delay_timer: 0,
             sound_timer: 0,
             rng,
         }
-    }
-
-    fn pixel_coords(&self, x: u8, y: u8) -> usize {
-        return usize::from(y) * WIDTH + usize::from(x);
     }
 
     fn tick(&mut self) {
@@ -139,50 +112,13 @@ impl Chip8 {
     }
 
     fn decode(&mut self, opcode: u16) -> Instruction {
-        let n1 = (opcode >> 12) as u8 & 0x000f;
-        let x = (opcode >> 8) as u8 & 0x000f;
-        let y = (opcode >> 4) as u8 & 0x000f;
-        let n = opcode as u8 & 0x000f;
-
-        let nn = opcode as u8;
-        let nnn = opcode & 0x0fff;
-
-        match (n1, x, y, n) {
-            (0x0, 0x0, 0xE, 0x0) => Instruction::Clear,
-            (0x0, 0x0, 0xE, 0xE) => Instruction::Return,
-            (0x1, _, _, _) => Instruction::Jump { nnn },
-            (0x2, _, _, _) => Instruction::Call { nnn },
-            (0x3, _, _, _) => Instruction::SkipEq { x, nn },
-            (0x4, _, _, _) => Instruction::SkipNEq { x, nn },
-            (0x5, _, _, 0x0) => Instruction::SkipEqVy { x, y },
-            (0x6, _, _, _) => Instruction::Load { x, nn },
-            (0x7, _, _, _) => Instruction::Add { x, nn },
-            (0x8, _, _, 0x0) => Instruction::LoadVy { x, y },
-            (0x8, _, _, 0x1) => Instruction::Or { x, y },
-            (0x8, _, _, 0x2) => Instruction::And { x, y },
-            (0x8, _, _, 0x3) => Instruction::Xor { x, y },
-            (0x8, _, _, 0x4) => Instruction::AddVy { x, y },
-            (0x8, _, _, 0x5) => Instruction::SubVy { x, y },
-            (0x8, _, _, 0x6) => Instruction::ShiftR { x },
-            (0x8, _, _, 0x7) => Instruction::SubVyVx { x, y },
-            (0x8, _, _, 0xE) => Instruction::ShiftL { x },
-            (0x9, _, _, 0x0) => Instruction::SkipNEqVy { x, y },
-            (0xA, _, _, _) => Instruction::LoadI { nnn },
-            (0xB, _, _, _) => Instruction::JumpV0 { nnn },
-            (0xC, _, _, _) => Instruction::Rand { x, nn },
-            (0xD, _, _, _) => Instruction::Draw { x, y, n },
-            (0xE, _, 0x9, 0xE) => Instruction::SkipKeyPress { x },
-            (0xE, _, 0xA, 0x1) => Instruction::SkipKeyNPress { x },
-            (0xF, _, 0x0, 0x7) => Instruction::GetDelayTimer { x },
-            (0xF, _, 0x0, 0xA) => Instruction::WaitKey { x },
-            (0xF, _, 0x1, 0x5) => Instruction::SetDelayTimer { x },
-            (0xF, _, 0x1, 0x8) => Instruction::SetSoundTimer { x },
-            (0xF, _, 0x1, 0xE) => Instruction::AddI { x },
-            (0xF, _, 0x2, 0x9) => Instruction::LoadFont { x },
-            (0xF, _, 0x3, 0x3) => Instruction::Bcd { x },
-            (0xF, _, 0x5, 0x5) => Instruction::Store { x },
-            (0xF, _, 0x6, 0x5) => Instruction::Fill { x },
-            _ => Instruction::Unknown(opcode),
+        Instruction {
+            group: (opcode >> 12) as u8 & 0x000f,
+            x: (opcode >> 8) as u8 & 0x000f,
+            y: (opcode >> 4) as u8 & 0x000f,
+            N: opcode as u8 & 0x000f,
+            kk: opcode as u8,
+            nnn: opcode & 0x0fff,
         }
     }
 } // impl Chip8
