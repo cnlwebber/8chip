@@ -2,118 +2,58 @@ use crate::{Chip8, FLAG_REGISTER, FONT_OFFSET, HEIGHT, SPRITE_WIDTH, WIDTH};
 
 use rand::RngExt;
 
-pub enum Instruction {
-    Clear,
-    Return,
-    Jump { nnn: u16 },
-    Call { nnn: u16 },
-    SkipEq { x: u8, nn: u8 },
-    SkipNEq { x: u8, nn: u8 },
-    SkipEqVy { x: u8, y: u8 },
-    Load { x: u8, nn: u8 },
-    Add { x: u8, nn: u8 },
-    LoadVy { x: u8, y: u8 },
-    Or { x: u8, y: u8 },
-    And { x: u8, y: u8 },
-    Xor { x: u8, y: u8 },
-    AddVy { x: u8, y: u8 },
-    SubVy { x: u8, y: u8 },
-    ShiftR { x: u8 },
-    SubVyVx { x: u8, y: u8 },
-    ShiftL { x: u8 },
-    SkipNEqVy { x: u8, y: u8 },
-    LoadI { nnn: u16 },
-    JumpV0 { nnn: u16 },
-    Rand { x: u8, nn: u8 },
-    Draw { x: u8, y: u8, n: u8 },
-    SkipKeyPress { x: u8 },
-    SkipKeyNPress { x: u8 },
-    GetDelayTimer { x: u8 },
-    WaitKey { x: u8 },
-    SetDelayTimer { x: u8 },
-    SetSoundTimer { x: u8 },
-    AddI { x: u8 },
-    LoadFont { x: u8 },
-    Bcd { x: u8 },
-    Store { x: u8 },
-    Fill { x: u8 },
-    Unknown(u16),
+pub struct Instruction {
+    group: u8,
+    x: u8,
+    y: u8,
+    nn: u8,
+    nnn: u16,
 }
 
 impl Chip8 {
     pub(super) fn execute(&mut self, instruction: Instruction) {
         match instruction {
-            Instruction::Clear => self.op_00e0(),
-            Instruction::Return => self.op_00ee(),
-            Instruction::Jump { nnn } => self.op_1nnn(nnn),
-            Instruction::Call { nnn } => self.op_2nnn(nnn),
-            Instruction::SkipEq { x, nn } => self.op_3xnn(x, nn),
-            Instruction::SkipNEq { x, nn } => self.op_4xnn(x, nn),
-            Instruction::SkipEqVy { x, y } => self.op_5xy0(x, y),
-            Instruction::Load { x, nn } => self.op_6xnn(x, nn),
-            Instruction::Add { x, nn } => self.op_7xnn(x, nn),
-            Instruction::LoadVy { x, y } => self.op_8xy0(x, y),
-            Instruction::Or { x, y } => self.op_8xy1(x, y),
-            Instruction::And { x, y } => self.op_8xy2(x, y),
-            Instruction::Xor { x, y } => self.op_8xy3(x, y),
-            Instruction::AddVy { x, y } => self.op_8xy4(x, y),
-            Instruction::SubVy { x, y } => self.op_8xy5(x, y),
-            Instruction::ShiftR { x } => self.op_8xy6(x),
-            Instruction::SubVyVx { x, y } => self.op_8xy7(x, y),
-            Instruction::ShiftL { x } => self.op_8xye(x),
-            Instruction::SkipNEqVy { x, y } => self.op_9xy0(x, y),
-            Instruction::LoadI { nnn } => self.op_annn(nnn),
-            Instruction::JumpV0 { nnn } => self.op_bnnn(nnn),
-            Instruction::Rand { x, nn } => self.op_cxnn(x, nn),
-            Instruction::Draw { x, y, n } => self.op_dxyn(x, y, n),
-            Instruction::SkipKeyPress { x } => self.op_ex9e(x),
-            Instruction::SkipKeyNPress { x } => self.op_exa1(x),
-            Instruction::GetDelayTimer { x } => self.op_fx07(x),
-            Instruction::WaitKey { x } => self.op_fx0a(x),
-            Instruction::SetDelayTimer { x } => self.op_fx15(x),
-            Instruction::SetSoundTimer { x } => self.op_fx18(x),
-            Instruction::AddI { x } => self.op_fx1e(x),
-            Instruction::LoadFont { x } => self.op_fx29(x),
-            Instruction::Bcd { x } => self.op_fx33(x),
-            Instruction::Store { x } => self.op_fx55(x),
-            Instruction::Fill { x } => self.op_fx65(x),
-            Instruction::Unknown(opcode) => eprintln!("unknown opcode: {:#06x}", opcode),
         }
     }
 
     // clear screen
-    fn op_00e0(&mut self) {
-        self.frame_buffer.fill(0);
+    fn cls(&mut self) {
+        self.frame_buffer.clear();
     } // Clear
 
     // exit subroutine
-    fn op_00ee(&mut self) {
-        self.pc = self
-            .stack
-            .pop()
-            .expect("Returned from subroutine with empty stack");
+    fn ret(&mut self) {
+        if self.stack_ptr < 1 {
+            panic!("Stack underflow")
+        }
+        self.stack_ptr -= 1;
+        self.pc = self.stack[self.stack_ptr as usize];
     } // Return
 
     // jump
-    fn op_1nnn(&mut self, nnn: u16) {
+    fn jp_addr(&mut self, nnn: u16) {
         self.pc = nnn;
     } // Jump
 
     // enter subroutine
-    fn op_2nnn(&mut self, nnn: u16) {
-        self.stack.push(self.pc);
+    fn call(&mut self, nnn: u16) {
+        if self.stack_ptr > 15 {
+            panic!("Stack overflow")
+        }
+        self.stack[self.stack_ptr as usize] = self.pc;
+        self.stack_ptr += 1;
         self.pc = nnn;
     } // Call
 
     // skip one instruction iff vx == nn
-    fn op_3xnn(&mut self, x: u8, nn: u8) {
+    fn se(&mut self, x: u8, nn: u8) {
         if self.registers[x as usize] == nn {
             self.pc += 2;
         }
     } // SkipEq
 
     // skip one instruction iff vx != nn
-    fn op_4xnn(&mut self, x: u8, nn: u8) {
+    fn sne(&mut self, x: u8, nn: u8) {
         if self.registers[x as usize] != nn {
             self.pc += 2;
         }
@@ -238,19 +178,20 @@ impl Chip8 {
                 break;
             }
             for (x, j) in (self.registers[x] % WIDTH as u8..).zip(0..SPRITE_WIDTH) {
-                if x > WIDTH as u8 - 1 {
+                let x = x as usize;
+                let y = y as usize;
+                if x > WIDTH - 1 {
                     break;
                 }
-                let frame_buffer_index = self.pixel_coords(x, y);
-                let frame_buffer_pixel = self.frame_buffer[frame_buffer_index];
                 let sprite_pixel = (pixel_data >> (7 - j)) & 0x01;
+                let buffer_pixel = self.frame_buffer.get_pixel(x, y)
                 if self.registers[FLAG_REGISTER] == 0
                     && sprite_pixel == 1
-                    && frame_buffer_pixel == 1
+                    && buffer_pixel == 1
                 {
                     self.registers[FLAG_REGISTER] = 1;
                 }
-                self.frame_buffer[frame_buffer_index] = sprite_pixel ^ frame_buffer_pixel;
+                self.frame_buffer.set_pixel(x, y, sprite_pixel ^ buffer_pixel == 1);
             }
         }
     } // Draw
