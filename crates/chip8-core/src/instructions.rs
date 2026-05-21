@@ -66,7 +66,7 @@ impl Chip8 {
     // clear screen
     fn cls(&mut self) {
         self.frame_buffer.clear();
-    } // Clear
+    }
 
     // exit subroutine
     fn ret(&mut self) {
@@ -75,12 +75,12 @@ impl Chip8 {
         }
         self.stack_ptr -= 1;
         self.pc = self.stack[self.stack_ptr as usize];
-    } // Return
+    }
 
     // jump
     fn jp(&mut self, nnn: u16) {
         self.pc = nnn;
-    } // Jump
+    }
 
     // enter subroutine
     fn call(&mut self, nnn: u16) {
@@ -90,59 +90,59 @@ impl Chip8 {
         self.stack[self.stack_ptr as usize] = self.pc;
         self.stack_ptr += 1;
         self.pc = nnn;
-    } // Call
+    }
 
     // skip one instruction iff vx == kk
     fn se(&mut self, x: u8, kk: u8) {
         if self.registers[x as usize] == kk {
             self.pc += 2;
         }
-    } // SkipEq
+    }
 
     // skip one instruction iff vx != kk
     fn sne(&mut self, x: u8, kk: u8) {
         if self.registers[x as usize] != kk {
             self.pc += 2;
         }
-    } // SkipNEq
+    }
 
     // skip one instruction iff vx == vy
     fn se_vy(&mut self, x: u8, y: u8) {
         if self.registers[x as usize] == self.registers[y as usize] {
             self.pc += 2;
         }
-    } // SkipEqVy
+    }
 
     // sets vx to kk
     fn ld_kk(&mut self, x: u8, kk: u8) {
         self.registers[x as usize] = kk;
-    } // Load
+    }
 
     // adds kk to vx (carry flag is not changed)
     fn add(&mut self, x: u8, kk: u8) {
         let x = x as usize;
         self.registers[x] = self.registers[x].wrapping_add(kk);
-    } // Add
+    }
 
     // sets vx to the value of vy
     fn ld_vy(&mut self, x: u8, y: u8) {
         self.registers[x as usize] = self.registers[y as usize];
-    } // LoadVy
+    }
 
     // sets vx to vx | vy
     fn or(&mut self, x: u8, y: u8) {
         self.registers[x as usize] |= self.registers[y as usize];
-    } // Or
+    }
 
     // sets vx to vx & vy
     fn and(&mut self, x: u8, y: u8) {
         self.registers[x as usize] &= self.registers[y as usize];
-    } // And
+    }
 
     // sets vx to vx ^ vy
     fn xor(&mut self, x: u8, y: u8) {
         self.registers[x as usize] ^= self.registers[y as usize];
-    } // Xor
+    }
 
     // adds vy to vx. vf is set to 1 when there's an overflow, and to 0 when there's not
     fn add_vy(&mut self, x: u8, y: u8) {
@@ -150,7 +150,7 @@ impl Chip8 {
         let (val, carry) = self.registers[x].overflowing_add(self.registers[y as usize]);
         self.registers[FLAG_REGISTER] = carry as u8;
         self.registers[x] = val;
-    } // AddVy
+    }
 
     // vy is subtracted from vx. vf is set to 0 when there's an underflow, and 1 when there is not (ie vf is set to 1 if VX >= vy and 0 if not)
     fn sub_vy(&mut self, x: u8, y: u8) {
@@ -158,14 +158,14 @@ impl Chip8 {
         let (val, carry) = self.registers[x].overflowing_sub(self.registers[y as usize]);
         self.registers[FLAG_REGISTER] = !carry as u8;
         self.registers[x] = val;
-    } // SubVy
+    }
 
     // shfits vx to the right by 1, then stores the least significant bit of vx prior to the shift into vf
     fn shr(&mut self, x: u8) {
         let x = x as usize;
         self.registers[FLAG_REGISTER] = self.registers[x] & 0x01;
         self.registers[x] >>= 1;
-    } // ShiftR
+    }
 
     // sets vx to vy minus vx. vf is set to 0 when there's an underflow, and 1 when there's not
     fn subn(&mut self, x: u8, y: u8) {
@@ -173,36 +173,36 @@ impl Chip8 {
         let (val, carry) = self.registers[y as usize].overflowing_sub(self.registers[x]);
         self.registers[FLAG_REGISTER] = !carry as u8;
         self.registers[x] = val;
-    } // SubVyVx
+    }
 
     // shifts vx to the left by 1, then sets vf to 1 if the most significant bit of vx prior to that shift was set, or to 0 if it was unset
     fn shl(&mut self, x: u8) {
         let x = x as usize;
         self.registers[FLAG_REGISTER] = self.registers[x] >> 7;
         self.registers[x] <<= 1;
-    } // ShiftL
+    }
 
     // skip one instruction iff vx != vy
     fn sne_vy(&mut self, x: u8, y: u8) {
         if self.registers[x as usize] != self.registers[y as usize] {
             self.pc += 2;
         }
-    } // SkipNEqVyVx
+    }
 
     // sets I to the address nnn
     fn ld_i(&mut self, nnn: u16) {
         self.index = nnn;
-    } // LoadI
+    }
 
     // jumps to the address nnn plus v0
     fn jp_v0(&mut self, nnn: u16) {
         self.pc = nnn + u16::from(self.registers[0]);
-    } // JumpV0
+    }
 
     // sets vx to the results of a bitwise and operation on a random number (typically 0 to 255) and kk
     fn rnd(&mut self, x: u8, kk: u8) {
         self.registers[x as usize] = kk & self.rng.random::<u8>();
-    } // Rand
+    }
 
     // draws a sprite at coordinate (vx, vy) that has a width of 8 pixels and a height of N pixels.
     // each row of 8 pixels is read as bit-coded starting from memory location I;
@@ -231,31 +231,29 @@ impl Chip8 {
                     break;
                 }
                 let sprite_pixel = (pixel_data >> (7 - j)) & 0x01;
-                let buffer_pixel = self.frame_buffer.get_pixel(x, y)
-                if self.registers[FLAG_REGISTER] == 0
-                    && sprite_pixel == 1
-                    && buffer_pixel == 1
-                {
+                let buffer_pixel = self.frame_buffer.get_pixel(x, y);
+                if self.registers[FLAG_REGISTER] == 0 && sprite_pixel == 1 && buffer_pixel == 1 {
                     self.registers[FLAG_REGISTER] = 1;
                 }
-                self.frame_buffer.set_pixel(x, y, sprite_pixel ^ buffer_pixel == 1);
+                self.frame_buffer
+                    .set_pixel(x, y, sprite_pixel ^ buffer_pixel == 1);
             }
         }
-    } // Draw
+    }
 
     // skips the next instruction if the key stored in vx (only consider the lowest nibble) is pressed
     fn skp(&mut self, x: u8) {
         if self.keypad[(self.registers[x as usize] & 0x0f) as usize] > 0 {
             self.pc += 2;
         }
-    } // SkipKeyPress
+    }
 
     // skips the next instruciton if the key stored in vx (only consider the lowest nibble) is not pressed
     fn sknp(&mut self, x: u8) {
         if self.keypad[(self.registers[x as usize] & 0x0f) as usize] == 0 {
             self.pc += 2;
         }
-    } // SkipKeyNPress
+    }
 
     // sets vx to the value of the delay timer
     fn ldf_delay(&mut self, x: u8) {
@@ -272,29 +270,29 @@ impl Chip8 {
             }
         }
         self.pc -= 2;
-    } // LoadKey
+    }
 
     // sets the delay timer to vx
     fn ld_delay(&mut self, x: u8) {
         self.delay_timer = self.registers[x as usize];
-    } // LoadDTimer
+    }
 
     // sets the sound timer to vx
     fn ld_sound(&mut self, x: u8) {
         self.sound_timer = self.registers[x as usize];
-    } // LoadSTimer
+    }
 
     // adds vx to I. vf is not affected
     fn add_i(&mut self, x: u8) {
         self.index += u16::from(self.registers[x as usize]);
-    } // AddI
+    }
 
     // sets I to the location of the sprite for the character in vx (only consider the lowest nibble).
     // characters 0-f (in hex) are represnted by a 4x5 font
     fn ld_i_sprite(&mut self, x: u8) {
         let nibble = self.registers[x as usize] & 0x0f;
         self.index = FONT_OFFSET as u16 + u16::from(nibble * 5);
-    } // SetI
+    }
 
     // stores the binary-coded decimal representation of vx, with the hundreds digit in memory at location in I
     // the tens digit at location I + 1, and the ones digit at location I + 2.
@@ -305,7 +303,7 @@ impl Chip8 {
             self.memory[self.index as usize + i] = temp % 10;
             temp /= 10;
         }
-    } // Bcd
+    }
 
     // stores from v0..=vx in memory, starting at address I. The offset from I is increased by 1 for each value written,
     // but I itself is left unmodified
@@ -314,7 +312,7 @@ impl Chip8 {
         for i in 0..=x {
             self.memory[base + i as usize] = self.registers[i as usize];
         }
-    } // Store
+    }
 
     // fills from v0..=vx with values from memory, starting at address I. The offset from I is increased by 1 for each value read,
     // but I itself is left unmodified
@@ -322,5 +320,5 @@ impl Chip8 {
         for i in 0..=x {
             self.registers[i as usize] = self.memory[(self.index + i as u16) as usize];
         }
-    } // Fill
+    }
 } // impl Chip8

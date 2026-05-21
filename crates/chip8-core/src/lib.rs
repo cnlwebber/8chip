@@ -30,14 +30,12 @@ pub const SPRITE_WIDTH: usize = 8;
 pub const FLAG_REGISTER: usize = 15;
 
 struct FrameBuffer {
-    buffer: [u8; 256]
+    buffer: [u8; 256],
 }
 
 impl Default for FrameBuffer {
     fn default() -> Self {
-        Self {
-            buffer: [0; 256]
-        }
+        Self { buffer: [0; 256] }
     }
 }
 
@@ -59,7 +57,7 @@ impl FrameBuffer {
     }
 
     fn clear(&mut self) {
-        self.buffer = [0; 256] ;
+        self.buffer = [0; 256];
     }
 }
 
