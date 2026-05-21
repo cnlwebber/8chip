@@ -112,50 +112,13 @@ impl Chip8 {
     }
 
     fn decode(&mut self, opcode: u16) -> Instruction {
-        let n1 = (opcode >> 12) as u8 & 0x000f;
-        let x = (opcode >> 8) as u8 & 0x000f;
-        let y = (opcode >> 4) as u8 & 0x000f;
-        let n = opcode as u8 & 0x000f;
-
-        let nn = opcode as u8;
-        let nnn = opcode & 0x0fff;
-
-        match (n1, x, y, n) {
-            (0x0, 0x0, 0xE, 0x0) => Instruction::Clear,
-            (0x0, 0x0, 0xE, 0xE) => Instruction::Return,
-            (0x1, _, _, _) => Instruction::Jump { nnn },
-            (0x2, _, _, _) => Instruction::Call { nnn },
-            (0x3, _, _, _) => Instruction::SkipEq { x, nn },
-            (0x4, _, _, _) => Instruction::SkipNEq { x, nn },
-            (0x5, _, _, 0x0) => Instruction::SkipEqVy { x, y },
-            (0x6, _, _, _) => Instruction::Load { x, nn },
-            (0x7, _, _, _) => Instruction::Add { x, nn },
-            (0x8, _, _, 0x0) => Instruction::LoadVy { x, y },
-            (0x8, _, _, 0x1) => Instruction::Or { x, y },
-            (0x8, _, _, 0x2) => Instruction::And { x, y },
-            (0x8, _, _, 0x3) => Instruction::Xor { x, y },
-            (0x8, _, _, 0x4) => Instruction::AddVy { x, y },
-            (0x8, _, _, 0x5) => Instruction::SubVy { x, y },
-            (0x8, _, _, 0x6) => Instruction::ShiftR { x },
-            (0x8, _, _, 0x7) => Instruction::SubVyVx { x, y },
-            (0x8, _, _, 0xE) => Instruction::ShiftL { x },
-            (0x9, _, _, 0x0) => Instruction::SkipNEqVy { x, y },
-            (0xA, _, _, _) => Instruction::LoadI { nnn },
-            (0xB, _, _, _) => Instruction::JumpV0 { nnn },
-            (0xC, _, _, _) => Instruction::Rand { x, nn },
-            (0xD, _, _, _) => Instruction::Draw { x, y, n },
-            (0xE, _, 0x9, 0xE) => Instruction::SkipKeyPress { x },
-            (0xE, _, 0xA, 0x1) => Instruction::SkipKeyNPress { x },
-            (0xF, _, 0x0, 0x7) => Instruction::GetDelayTimer { x },
-            (0xF, _, 0x0, 0xA) => Instruction::WaitKey { x },
-            (0xF, _, 0x1, 0x5) => Instruction::SetDelayTimer { x },
-            (0xF, _, 0x1, 0x8) => Instruction::SetSoundTimer { x },
-            (0xF, _, 0x1, 0xE) => Instruction::AddI { x },
-            (0xF, _, 0x2, 0x9) => Instruction::LoadFont { x },
-            (0xF, _, 0x3, 0x3) => Instruction::Bcd { x },
-            (0xF, _, 0x5, 0x5) => Instruction::Store { x },
-            (0xF, _, 0x6, 0x5) => Instruction::Fill { x },
-            _ => Instruction::Unknown(opcode),
+        Instruction {
+            group: (opcode >> 12) as u8 & 0x000f,
+            x: (opcode >> 8) as u8 & 0x000f,
+            y: (opcode >> 4) as u8 & 0x000f,
+            N: opcode as u8 & 0x000f,
+            kk: opcode as u8,
+            nnn: opcode & 0x0fff,
         }
     }
 } // impl Chip8
