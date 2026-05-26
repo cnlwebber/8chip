@@ -1,12 +1,17 @@
-use chip8_core::{HEIGHT, WIDTH};
-use softbuffer::{Context, Surface};
-use std::{num::NonZeroU32, rc::Rc};
+use chip8_core::{Chip8, FrameBuffer};
+use softbuffer::{Buffer, Context, Surface};
+use std::{
+    num::NonZeroU32,
+    path::Path,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 use winit::{
     application::ApplicationHandler,
-    dpi::{PhysicalSize, Size},
-    event::WindowEvent,
+    dpi::PhysicalSize,
+    event::{KeyEvent, WindowEvent},
     event_loop::ActiveEventLoop,
-    raw_window_handle::{HasDisplayHandle, HasRawWindowHandle},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
@@ -21,10 +26,14 @@ const PIXEL_SCALE: u32 = 8;
 pub(super) struct App {
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
+    cpu: Chip8,
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let path: &Path =
+            Path::new("C:\\Users\\cnlwe\\Desktop\\repos\\gumbis8\\roms\\br8kout.ch8");
+        self.cpu.load_rom(path).unwrap();
         let size = PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
         let window = Rc::new(
             event_loop
@@ -43,6 +52,9 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+
+        self.cpu.cycle();
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -60,31 +72,63 @@ impl ApplicationHandler for App {
 
                     // Buffer consists of one u32 for each pixel in the area to draw, so 512 * 256 u32's
                     // Pixel format (u32): 00000000RRRRRRRRGGGGGGGGBBBBBBBB
-                    // White background    00000000111111111111111111111111 (0x00ffffff)
                     let mut buffer = surface.buffer_mut().unwrap();
-                    let b_width = buffer.width().get();
-                    let b_height = buffer.height().get();
-                    for index in 0..(chip8_core::HEIGHT * chip8_core::WIDTH) {
-                        let c8_x = index % 64;
-                        let c8_y = index / 64;
-
-                        let start_index = c8_x * PIXEL_SCALE as usize
-                            + c8_y * b_width as usize * PIXEL_SCALE as usize;
-
-                        for i in 0..PIXEL_SCALE {
-                            for j in 0..PIXEL_SCALE {
-                                if (c8_x + c8_y) % 2 == 1 {
-                                    buffer[start_index + (i * b_width + j) as usize] = WHITE_PIXEL;
-                                }
-                            }
-                        }
-                    }
-
+                    chip8_draw(&mut buffer, self.cpu.get_buffer());
                     buffer.present().unwrap();
                 }
                 self.window.as_ref().unwrap().request_redraw();
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                handle_input(&mut self.cpu, event);
+            }
             _ => (),
         }
+
+        let next_frame = Instant::now() + Duration::from_millis(16);
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(next_frame));
+    }
+}
+
+fn chip8_draw(winit_buffer: &mut Buffer<'_, Rc<Window>, Rc<Window>>, chip8_buffer: &FrameBuffer) {
+    let b_width = winit_buffer.width().get();
+    for index in 0..(chip8_core::HEIGHT * chip8_core::WIDTH) {
+        let c8_x = index % 64;
+        let c8_y = index / 64;
+
+        let start_index =
+            c8_x * PIXEL_SCALE as usize + c8_y * b_width as usize * PIXEL_SCALE as usize;
+
+        let is_set = chip8_buffer.get_pixel(c8_x, c8_y);
+        for i in 0..PIXEL_SCALE {
+            for j in 0..PIXEL_SCALE {
+                if is_set == 1 {
+                    winit_buffer[start_index + (i * b_width + j) as usize] = WHITE_PIXEL;
+                } else {
+                    winit_buffer[start_index + (i * b_width + j) as usize] = BLACK_PIXEL;
+                }
+            }
+        }
+    }
+}
+
+fn handle_input(cpu: &mut Chip8, event: KeyEvent) {
+    match event.physical_key {
+        PhysicalKey::Code(KeyCode::Digit1) => cpu.input(0x1, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::Digit2) => cpu.input(0x2, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::Digit3) => cpu.input(0x3, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::Digit4) => cpu.input(0xC, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyQ) => cpu.input(0x4, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyW) => cpu.input(0x5, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyE) => cpu.input(0x6, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyR) => cpu.input(0xD, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyA) => cpu.input(0x7, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyS) => cpu.input(0x8, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyD) => cpu.input(0x9, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyF) => cpu.input(0xE, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyZ) => cpu.input(0xA, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyX) => cpu.input(0x0, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyC) => cpu.input(0xB, event.state.is_pressed()),
+        PhysicalKey::Code(KeyCode::KeyV) => cpu.input(0xF, event.state.is_pressed()),
+        _ => {}
     }
 }

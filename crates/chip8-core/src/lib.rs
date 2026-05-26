@@ -1,4 +1,11 @@
 mod instructions;
+mod rom;
+
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    path::Path,
+};
 
 use rand::rngs::ThreadRng;
 
@@ -29,7 +36,7 @@ pub const HEIGHT: usize = 32;
 pub const SPRITE_WIDTH: usize = 8;
 pub const FLAG_REGISTER: usize = 15;
 
-struct FrameBuffer {
+pub struct FrameBuffer {
     buffer: [u8; 256],
 }
 
@@ -40,14 +47,15 @@ impl Default for FrameBuffer {
 }
 
 impl FrameBuffer {
-    fn get_pixel(&self, x: usize, y: usize) -> u8 {
-        let pixel_index = y * HEIGHT + x;
-        (self.buffer[pixel_index >> 8]) >> (7 - (pixel_index % 8)) & 1
+    pub fn get_pixel(&self, x: usize, y: usize) -> u8 {
+        let pixel_index = y * WIDTH + x;
+        let bit_index = 7 - pixel_index % 8;
+        (self.buffer[pixel_index >> 3]) >> bit_index & 1
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, val: bool) {
-        let pixel_index = y * HEIGHT + x;
-        let byte_index = pixel_index >> 8;
+        let pixel_index = y * WIDTH + x;
+        let byte_index = pixel_index >> 3;
         let bit_index = 7 - pixel_index % 8;
         if val {
             self.buffer[byte_index] |= 1 << bit_index;
@@ -59,9 +67,13 @@ impl FrameBuffer {
     fn clear(&mut self) {
         self.buffer = [0; 256];
     }
+
+    pub fn get(&self) -> &[u8; 256] {
+        &self.buffer
+    }
 }
 
-struct Chip8 {
+pub struct Chip8 {
     pc: u16,
     index: u16,
     memory: [u8; 4096],
@@ -76,8 +88,8 @@ struct Chip8 {
     rng: ThreadRng,
 }
 
-impl Chip8 {
-    fn new() -> Self {
+impl Default for Chip8 {
+    fn default() -> Self {
         let mut memory = [0; 4096];
         memory[FONT_OFFSET..FONT_OFFSET + FONT.len()].copy_from_slice(&FONT);
         let rng = rand::rng();
@@ -96,11 +108,24 @@ impl Chip8 {
             rng,
         }
     }
+}
 
-    fn tick(&mut self) {
-        let opcode = self.fetch();
-        let instruction = self.decode(opcode);
-        self.execute(instruction);
+impl Chip8 {
+
+    pub fn cycle(&mut self) {
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+        if self.sound_timer > 0 {
+            self.sound_timer -= 1;
+        }
+        for _ in 0..12 {
+            
+            let opcode = self.fetch();
+            let instruction = self.decode(opcode);
+            self.execute(instruction);
+        }
+        self.check_keys();
     }
 
     fn fetch(&mut self) -> u16 {
@@ -118,5 +143,52 @@ impl Chip8 {
             kk: opcode as u8,
             nnn: opcode & 0x0fff,
         }
+    }
+
+    pub fn get_buffer(&self) -> &FrameBuffer {
+        &self.frame_buffer
+    }
+
+    pub fn check_keys(&mut self) {
+        for (index, key) in self.keypad.iter().enumerate() {
+            if *key == 1 && self.prev_keys[index] == 0 {
+                self.prev_keys[index] = 1;
+            }
+            if *key == 0 && self.prev_keys[index] == 1 {
+                self.prev_keys[index] = 0;
+            }
+        }
+    }
+
+    pub fn input(&mut self, key: u8, pressed: bool) {
+        if pressed {
+            self.keypad[key as usize] = 1;
+        } else {
+            self.keypad[key as usize] = 0;
+        }
+    }
+
+    pub fn load_rom(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let display = path.display();
+        let file = match File::open(path) {
+            Err(why) => panic!("couldn't open {}: {}", display, why),
+            Ok(file) => file,
+        };
+        let reader = BufReader::new(file);
+        // debug
+        println!("reading rom byte by byte");
+        for (index, byte_result) in reader.bytes().enumerate() {
+            match byte_result {
+                Ok(byte) => {
+                    print!("0x{:02X} ", byte);
+                    self.memory[index + 0x200] = byte;
+                }
+                Err(e) => {
+                    eprintln!("\nError reading byte: {}", e);
+                    return Err(e.into());
+                }
+            }
+        }
+        Ok(())
     }
 } // impl Chip8

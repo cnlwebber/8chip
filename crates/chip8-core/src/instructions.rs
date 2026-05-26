@@ -31,7 +31,7 @@ impl Chip8 {
             (0x2, _, _, _) => self.call(nnn),
             (0x3, _, _, _) => self.se(x, kk),
             (0x4, _, _, _) => self.sne(x, kk),
-            (0x5, _, _, 0x0) => self.sne_vy(x, y),
+            (0x5, _, _, 0x0) => self.se_vy(x, y),
             (0x6, _, _, _) => self.ld_kk(x, kk),
             (0x7, _, _, _) => self.add(x, kk),
             (0x8, _, _, 0x0) => self.ld_vy(x, y),
@@ -59,7 +59,7 @@ impl Chip8 {
             (0xF, _, 0x3, 0x3) => self.ld_bcd(x),
             (0xF, _, 0x5, 0x5) => self.ldf_registers(x),
             (0xF, _, 0x6, 0x5) => self.ld_registers(x),
-            _ => panic!("Unknown opcode"),
+            _ => panic!("Unknown opcode: {}, {}, {}, {}", group, x, y, N),
         }
     }
 
@@ -148,38 +148,43 @@ impl Chip8 {
     fn add_vy(&mut self, x: u8, y: u8) {
         let x = x as usize;
         let (val, carry) = self.registers[x].overflowing_add(self.registers[y as usize]);
-        self.registers[FLAG_REGISTER] = carry as u8;
         self.registers[x] = val;
+        self.registers[FLAG_REGISTER] = carry as u8;
     }
 
     // vy is subtracted from vx. vf is set to 0 when there's an underflow, and 1 when there is not (ie vf is set to 1 if VX >= vy and 0 if not)
     fn sub_vy(&mut self, x: u8, y: u8) {
         let x = x as usize;
         let (val, carry) = self.registers[x].overflowing_sub(self.registers[y as usize]);
-        self.registers[FLAG_REGISTER] = !carry as u8;
         self.registers[x] = val;
+        self.registers[FLAG_REGISTER] = !carry as u8;
     }
 
     // shfits vx to the right by 1, then stores the least significant bit of vx prior to the shift into vf
     fn shr(&mut self, x: u8) {
         let x = x as usize;
         self.registers[FLAG_REGISTER] = self.registers[x] & 0x01;
-        self.registers[x] >>= 1;
+        if x != FLAG_REGISTER {
+            self.registers[x] >>= 1;
+        }
     }
 
     // sets vx to vy minus vx. vf is set to 0 when there's an underflow, and 1 when there's not
     fn subn(&mut self, x: u8, y: u8) {
         let x = x as usize;
         let (val, carry) = self.registers[y as usize].overflowing_sub(self.registers[x]);
-        self.registers[FLAG_REGISTER] = !carry as u8;
         self.registers[x] = val;
+        self.registers[FLAG_REGISTER] = !carry as u8;
     }
 
     // shifts vx to the left by 1, then sets vf to 1 if the most significant bit of vx prior to that shift was set, or to 0 if it was unset
     fn shl(&mut self, x: u8) {
         let x = x as usize;
         self.registers[FLAG_REGISTER] = self.registers[x] >> 7;
-        self.registers[x] <<= 1;
+        if x != FLAG_REGISTER {
+            self.registers[x] <<= 1;
+        }
+        
     }
 
     // skip one instruction iff vx != vy
@@ -264,7 +269,7 @@ impl Chip8 {
     // delay and sound timers should continue processing
     fn ldf_key(&mut self, x: u8) {
         for (index, &key) in self.keypad.iter().enumerate() {
-            if key != 0 && self.prev_keys[index] == 0 {
+            if key == 0 && self.prev_keys[index] == 1 {
                 self.registers[x as usize] = index as u8;
                 return;
             }
