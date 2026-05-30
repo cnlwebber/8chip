@@ -184,7 +184,6 @@ impl Chip8 {
         if x != FLAG_REGISTER {
             self.registers[x] <<= 1;
         }
-        
     }
 
     // skip one instruction iff vx != vy

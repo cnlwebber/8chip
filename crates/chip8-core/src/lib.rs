@@ -1,5 +1,4 @@
 mod instructions;
-mod rom;
 
 use std::{
     fs::File,
@@ -111,7 +110,6 @@ impl Default for Chip8 {
 }
 
 impl Chip8 {
-
     pub fn cycle(&mut self) {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
@@ -120,7 +118,6 @@ impl Chip8 {
             self.sound_timer -= 1;
         }
         for _ in 0..12 {
-            
             let opcode = self.fetch();
             let instruction = self.decode(opcode);
             self.execute(instruction);
@@ -175,12 +172,9 @@ impl Chip8 {
             Ok(file) => file,
         };
         let reader = BufReader::new(file);
-        // debug
-        println!("reading rom byte by byte");
         for (index, byte_result) in reader.bytes().enumerate() {
             match byte_result {
                 Ok(byte) => {
-                    print!("0x{:02X} ", byte);
                     self.memory[index + 0x200] = byte;
                 }
                 Err(e) => {

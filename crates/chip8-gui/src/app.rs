@@ -1,6 +1,7 @@
 use chip8_core::{Chip8, FrameBuffer};
 use softbuffer::{Buffer, Context, Surface};
 use std::{
+    default,
     num::NonZeroU32,
     path::Path,
     rc::Rc,
@@ -22,8 +23,24 @@ const WHITE_PIXEL: u32 = 0x00ffffff;
 const BLACK_PIXEL: u32 = 0x00000000;
 const PIXEL_SCALE: u32 = 8;
 
+const FPS: u64 = 60;
+const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FPS);
+
+struct RenderTarget {
+    time: Instant,
+}
+
+impl Default for RenderTarget {
+    fn default() -> Self {
+        RenderTarget {
+            time: (Instant::now()),
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct App {
+    render_target: RenderTarget,
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     cpu: Chip8,
@@ -31,9 +48,9 @@ pub(super) struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let path: &Path =
-            Path::new("C:\\Users\\cnlwe\\Desktop\\repos\\gumbis8\\roms\\br8kout.ch8");
+        let path: &Path = Path::new("C:\\Users\\cnlwe\\Desktop\\repos\\gumbis8\\roms\\br8kout.ch8");
         self.cpu.load_rom(path).unwrap();
+
         let size = PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
         let window = Rc::new(
             event_loop
@@ -45,47 +62,63 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
         let context = Context::new(window.clone()).unwrap();
-        let surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
-
+        let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
+        surface
+            .resize(
+                NonZeroU32::new(size.width).unwrap(),
+                NonZeroU32::new(size.height).unwrap(),
+            )
+            .unwrap();
         self.window = Some(window);
         self.surface = Some(surface);
     }
 
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, _cause: winit::event::StartCause) {
+        if self.render_target.time <= Instant::now() {
+            self.render_target.time += FRAME_TIME;
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
+        }
+    }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-
-        self.cpu.cycle();
-
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                //draw
-                let size = self.window.as_ref().unwrap().inner_size();
-                if let Some(surface) = self.surface.as_mut() {
-                    surface
-                        .resize(
-                            NonZeroU32::new(size.width).unwrap(),
-                            NonZeroU32::new(size.height).unwrap(),
-                        )
-                        .unwrap();
-
-                    // Buffer consists of one u32 for each pixel in the area to draw, so 512 * 256 u32's
-                    // Pixel format (u32): 00000000RRRRRRRRGGGGGGGGBBBBBBBB
-                    let mut buffer = surface.buffer_mut().unwrap();
-                    chip8_draw(&mut buffer, self.cpu.get_buffer());
-                    buffer.present().unwrap();
+                //let size = self.window.as_ref().unwrap().inner_size();
+                // if let Some(surface) = self.surface.as_mut() {
+                //     surface
+                //         .resize(
+                //             NonZeroU32::new(size.width).unwrap(),
+                //             NonZeroU32::new(size.height).unwrap(),
+                //         )
+                //         .unwrap();
+                self.cpu.cycle();
+                let mut buffer = self.surface.as_mut().unwrap().buffer_mut().unwrap();
+                chip8_draw(&mut buffer, self.cpu.get_buffer());
+                buffer.present().unwrap();
+                let now = Instant::now();
+                if self.render_target.time <= now {
+                    self.render_target.time = now + FRAME_TIME;
+                    if let Some(window) = self.window.as_ref() {
+                        window.request_redraw();
+                    }
                 }
-                self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 handle_input(&mut self.cpu, event);
             }
             _ => (),
         }
+    }
 
-        let next_frame = Instant::now() + Duration::from_millis(16);
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(next_frame));
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            self.render_target.time,
+        ));
     }
 }
 
